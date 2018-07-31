@@ -1,1 +1,1 @@
-intall_odoo
+install_odoo

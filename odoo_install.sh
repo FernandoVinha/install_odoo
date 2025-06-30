@@ -1,5 +1,5 @@
 #!/bin/bash
-
+ 
 # Variáveis de configuração
 OE_USER="odoo"
 OE_HOME="/$OE_USER"

@@ -13,35 +13,39 @@ OE_CONFIG="${OE_USER}-server"
 PYTHON_VERSION="3.8"
 VENV_PATH="/opt/odoo-venv"
 
-# URL funcional de wkhtmltopdf
-WKHTMLTOX_X64=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
-WKHTMLTOX_X32=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_i386.deb
+WKHTMLTOX_X64=https://downloads.wkhtmltopdf.org/0.12/0.12.1/wkhtmltox-0.12.1_linux-trusty-amd64.deb
+WKHTMLTOX_X32=https://downloads.wkhtmltopdf.org/0.12/0.12.1/wkhtmltox-0.12.1_linux-trusty-i386.deb
 
+# Atualização do sistema
 echo -e "\n---- Update Server ----"
 sudo apt update && sudo apt upgrade -y
 
-echo -e "\n---- Install Python 3.8 and Dependencies ----"
+# Repositório para Python 3.8
 sudo apt install software-properties-common -y
 sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt update
-sudo apt install -y python3.8 python3.8-venv python3.8-dev gcc libffi-dev libssl-dev libpq-dev \
-  libxml2-dev libxslt1-dev zlib1g-dev libjpeg-dev libldap2-dev libsasl2-dev libtiff-dev libopenjp2-7-dev
 
-echo -e "\n---- Create Python Virtual Environment ----"
+# Python 3.8 + venv
+sudo apt install -y python3.8 python3.8-venv python3.8-dev gcc libffi-dev libssl-dev libpq-dev libxml2-dev libxslt1-dev zlib1g-dev libjpeg-dev libldap2-dev libsasl2-dev libtiff-dev libopenjp2-7-dev
+
+# Cria ambiente virtual
 python3.8 -m venv $VENV_PATH
 source $VENV_PATH/bin/activate
 pip install --upgrade pip wheel setuptools
-pip install -r https://raw.githubusercontent.com/odoo/odoo/${OE_VERSION}/requirements.txt
+pip install -r https://raw.githubusercontent.com/odoo/odoo/${OE_VERSION}/requirements.txt --no-deps --ignore-requires-python
+pip install git+https://github.com/umermughal/suds-jurko.git@master
 pip install gevent==1.5.0
 deactivate
 
+# PostgreSQL
 echo -e "\n---- Install PostgreSQL Server ----"
 sudo apt install postgresql -y
 sudo su - postgres -c "createuser -s $OE_USER" 2> /dev/null || true
 
-echo -e "\n---- Install Other Required Packages ----"
+# Dependências extras
 sudo apt install wget git gdebi-core -y
 
+# Wkhtmltopdf
 if [ $INSTALL_WKHTMLTOPDF = "True" ]; then
   echo -e "\n---- Install wkhtmltopdf ----"
   if [ "`getconf LONG_BIT`" == "64" ]; then
@@ -50,27 +54,26 @@ if [ $INSTALL_WKHTMLTOPDF = "True" ]; then
     _url=$WKHTMLTOX_X32
   fi
   wget $_url
-  sudo gdebi --n $(basename $_url)
-  sudo ln -sf /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf
-  sudo ln -sf /usr/local/bin/wkhtmltoimage /usr/bin/wkhtmltoimage
+  sudo gdebi --n `basename $_url`
+  sudo ln -s /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf
+  sudo ln -s /usr/local/bin/wkhtmltoimage /usr/bin/wkhtmltoimage
 fi
 
-echo -e "\n---- Create Odoo User and Directories ----"
+# Cria usuário
 sudo adduser --system --quiet --shell=/bin/bash --home=$OE_HOME --gecos 'ODOO' --group $OE_USER
 sudo adduser $OE_USER sudo
-sudo mkdir -p /var/log/$OE_USER
+
+# Diretório de log
+sudo mkdir /var/log/$OE_USER
 sudo chown $OE_USER:$OE_USER /var/log/$OE_USER
-sudo mkdir -p $OE_HOME/custom/addons
-sudo chown -R $OE_USER:$OE_USER $OE_HOME/custom
 
+# Instala Odoo
 echo -e "\n==== Installing ODOO Server ===="
-if [ ! -d "$OE_HOME_EXT/.git" ]; then
-  sudo rm -rf $OE_HOME_EXT
-  sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
-fi
+sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
 
+# Enterprise (se necessário)
 if [ $IS_ENTERPRISE = "True" ]; then
-    sudo ln -sf /usr/bin/nodejs /usr/bin/node
+    sudo ln -s /usr/bin/nodejs /usr/bin/node
     sudo su $OE_USER -c "mkdir -p $OE_HOME/enterprise/addons"
     sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME/enterprise/addons"
     sudo pip install num2words ofxparse
@@ -78,7 +81,11 @@ if [ $IS_ENTERPRISE = "True" ]; then
     sudo npm install -g less less-plugin-clean-css
 fi
 
-echo -e "\n---- Creating Configuration File ----"
+# Módulos customizados
+sudo su $OE_USER -c "mkdir -p $OE_HOME/custom/addons"
+sudo chown -R $OE_USER:$OE_USER $OE_HOME/*
+
+# Configuração
 sudo tee /etc/${OE_CONFIG}.conf > /dev/null <<EOF
 [options]
 admin_passwd = ${OE_SUPERADMIN}
@@ -90,7 +97,7 @@ EOF
 sudo chown $OE_USER:$OE_USER /etc/${OE_CONFIG}.conf
 sudo chmod 640 /etc/${OE_CONFIG}.conf
 
-echo -e "\n---- Creating Startup Script ----"
+# Script de inicialização
 sudo tee $OE_HOME_EXT/start.sh > /dev/null <<EOF
 #!/bin/bash
 source $VENV_PATH/bin/activate
@@ -99,7 +106,7 @@ EOF
 
 sudo chmod +x $OE_HOME_EXT/start.sh
 
-echo -e "\n---- Creating Daemon Script ----"
+# Script de daemon
 cat <<EOF > ~/$OE_CONFIG
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -126,15 +133,15 @@ VENV_ACTIVATE="$VENV_PATH/bin/activate"
 [ -f \$CONFIGFILE ] || exit 0
 checkpid() {
   [ -f \$PIDFILE ] || return 1
-  pid=\`cat \$PIDFILE\`
+  pid=`cat \$PIDFILE`
   [ -d /proc/\$pid ] && return 0
   return 1
 }
-case "\$1" in
+case "$1" in
   start)
     echo -n "Starting \$DESC: "
-    start-stop-daemon --start --quiet --pidfile \$PIDFILE \\
-      --chuid \$USER --background --make-pidfile \\
+    start-stop-daemon --start --quiet --pidfile \$PIDFILE \
+      --chuid \$USER --background --make-pidfile \
       --exec /bin/bash -- -c ". \$VENV_ACTIVATE && exec python \$DAEMON \$DAEMON_OPTS"
     echo "\$NAME."
     ;;
@@ -161,14 +168,16 @@ sudo chmod 755 /etc/init.d/$OE_CONFIG
 sudo chown root: /etc/init.d/$OE_CONFIG
 sudo update-rc.d $OE_CONFIG defaults
 
-echo -e "\n---- Starting Odoo Service ----"
+# Inicializa o serviço
 sudo /etc/init.d/$OE_CONFIG start
 
+# Mensagem final
 echo -e "\n-----------------------------------------------------------"
-echo "✅ Odoo $OE_VERSION instalado com sucesso em Python $PYTHON_VERSION (venv)"
-echo "Acesse: http://localhost:$OE_PORT"
-echo "Start:   sudo service $OE_CONFIG start"
-echo "Stop:    sudo service $OE_CONFIG stop"
+echo "Done! Odoo $OE_VERSION is up and running using Python $PYTHON_VERSION in venv."
+echo "Port: $OE_PORT"
+echo "User service: $OE_USER"
+echo "Start: sudo service $OE_CONFIG start"
+echo "Stop: sudo service $OE_CONFIG stop"
 echo "Restart: sudo service $OE_CONFIG restart"
-echo "Log:     tail -f /var/log/$OE_USER/$OE_CONFIG.log"
+echo "Access: http://localhost:$OE_PORT"
 echo "-----------------------------------------------------------"

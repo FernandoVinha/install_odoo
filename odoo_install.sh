@@ -1,5 +1,5 @@
 #!/bin/bash
- 
+
 # Variáveis de configuração
 OE_USER="odoo"
 OE_HOME="/$OE_USER"
@@ -13,8 +13,8 @@ OE_CONFIG="${OE_USER}-server"
 PYTHON_VERSION="3.8"
 VENV_PATH="/opt/odoo-venv"
 
-WKHTMLTOX_X64=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.6/wkhtmltox_0.12.6-1.bionic_amd64.deb
-WKHTMLTOX_X32=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.6/wkhtmltox_0.12.6-1.bionic_i386.deb
+WKHTMLTOX_X32=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_i386.deb
+WKHTMLTOX_X64=https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
 
 # Atualização do sistema
 echo -e "\n---- Update Server ----"
@@ -51,12 +51,19 @@ sudo apt install wget git gdebi-core -y
 if [ $INSTALL_WKHTMLTOPDF = "True" ]; then
   echo -e "\n---- Install wkhtmltopdf ----"
   if [ "`getconf LONG_BIT`" == "64" ]; then
-    _url=$WKHTMLTOX_X64
+    _file="wkhtmltox_0.12.6.1-2.jammy_amd64.deb"
   else
-    _url=$WKHTMLTOX_X32
+    _file="wkhtmltox_0.12.6.1-2.jammy_i386.deb"
   fi
-  wget $_url
-  sudo gdebi --n `basename $_url`
+
+  if [ -f "$_file" ]; then
+    echo "Using local wkhtmltopdf package: $_file"
+  else
+    echo "Downloading wkhtmltopdf package: $_file"
+    wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/$_file
+  fi
+
+  sudo gdebi --n $_file
   sudo ln -sf /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf
   sudo ln -sf /usr/local/bin/wkhtmltoimage /usr/bin/wkhtmltoimage
 fi

@@ -13,8 +13,8 @@ OE_CONFIG="${OE_USER}-server"
 PYTHON_VERSION="3.8"
 VENV_PATH="/opt/odoo-venv"
 
-WKHTMLTOX_X64=https://downloads.wkhtmltopdf.org/0.12/0.12.1/wkhtmltox-0.12.1_linux-trusty-amd64.deb
-WKHTMLTOX_X32=https://downloads.wkhtmltopdf.org/0.12/0.12.1/wkhtmltox-0.12.1_linux-trusty-i386.deb
+WKHTMLTOX_X64=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.6/wkhtmltox_0.12.6-1.bionic_amd64.deb
+WKHTMLTOX_X32=https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.6/wkhtmltox_0.12.6-1.bionic_i386.deb
 
 # Atualização do sistema
 echo -e "\n---- Update Server ----"
@@ -32,7 +32,9 @@ sudo apt install -y python3.8 python3.8-venv python3.8-dev gcc libffi-dev libssl
 python3.8 -m venv $VENV_PATH
 source $VENV_PATH/bin/activate
 pip install --upgrade pip wheel setuptools
-pip install -r https://raw.githubusercontent.com/odoo/odoo/${OE_VERSION}/requirements.txt --no-deps --ignore-requires-python
+wget https://raw.githubusercontent.com/odoo/odoo/${OE_VERSION}/requirements.txt -O /tmp/requirements.txt
+sed -i '/suds-jurko==0.6/d' /tmp/requirements.txt
+pip install -r /tmp/requirements.txt
 pip install git+https://github.com/umermughal/suds-jurko.git@master
 pip install gevent==1.5.0
 deactivate
@@ -55,8 +57,8 @@ if [ $INSTALL_WKHTMLTOPDF = "True" ]; then
   fi
   wget $_url
   sudo gdebi --n `basename $_url`
-  sudo ln -s /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf
-  sudo ln -s /usr/local/bin/wkhtmltoimage /usr/bin/wkhtmltoimage
+  sudo ln -sf /usr/local/bin/wkhtmltopdf /usr/bin/wkhtmltopdf
+  sudo ln -sf /usr/local/bin/wkhtmltoimage /usr/bin/wkhtmltoimage
 fi
 
 # Cria usuário
@@ -64,16 +66,19 @@ sudo adduser --system --quiet --shell=/bin/bash --home=$OE_HOME --gecos 'ODOO' -
 sudo adduser $OE_USER sudo
 
 # Diretório de log
-sudo mkdir /var/log/$OE_USER
+sudo mkdir -p /var/log/$OE_USER
 sudo chown $OE_USER:$OE_USER /var/log/$OE_USER
 
 # Instala Odoo
 echo -e "\n==== Installing ODOO Server ===="
-sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
+if [ ! -d "$OE_HOME_EXT/.git" ]; then
+  sudo rm -rf $OE_HOME_EXT
+  sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
+fi
 
 # Enterprise (se necessário)
 if [ $IS_ENTERPRISE = "True" ]; then
-    sudo ln -s /usr/bin/nodejs /usr/bin/node
+    sudo ln -sf /usr/bin/nodejs /usr/bin/node
     sudo su $OE_USER -c "mkdir -p $OE_HOME/enterprise/addons"
     sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/enterprise "$OE_HOME/enterprise/addons"
     sudo pip install num2words ofxparse
@@ -82,8 +87,8 @@ if [ $IS_ENTERPRISE = "True" ]; then
 fi
 
 # Módulos customizados
-sudo su $OE_USER -c "mkdir -p $OE_HOME/custom/addons"
-sudo chown -R $OE_USER:$OE_USER $OE_HOME/*
+sudo mkdir -p $OE_HOME/custom/addons
+sudo chown -R $OE_USER:$OE_USER $OE_HOME/custom
 
 # Configuração
 sudo tee /etc/${OE_CONFIG}.conf > /dev/null <<EOF

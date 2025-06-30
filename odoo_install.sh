@@ -76,13 +76,12 @@ sudo adduser $OE_USER sudo
 sudo mkdir -p /var/log/$OE_USER
 sudo chown $OE_USER:$OE_USER /var/log/$OE_USER
 
-# Limpa Odoo anterior, se houver
-echo -e "\n---- Cleaning previous Odoo installation (if any) ----"
-sudo rm -rf $OE_HOME_EXT
-
 # Instala Odoo
 echo -e "\n==== Installing ODOO Server ===="
-sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
+if [ ! -d "$OE_HOME_EXT/.git" ]; then
+  sudo rm -rf $OE_HOME_EXT
+  sudo git clone --depth 1 --branch $OE_VERSION https://www.github.com/odoo/odoo $OE_HOME_EXT/
+fi
 
 # Enterprise (se necessário)
 if [ $IS_ENTERPRISE = "True" ]; then
@@ -103,6 +102,7 @@ sudo tee /etc/${OE_CONFIG}.conf > /dev/null <<EOF
 [options]
 admin_passwd = ${OE_SUPERADMIN}
 xmlrpc_port = ${OE_PORT}
+xmlrpc_interface = 177.73.234.214
 logfile = /var/log/${OE_USER}/${OE_CONFIG}.log
 addons_path=${OE_HOME_EXT}/addons,${OE_HOME}/custom/addons
 EOF
